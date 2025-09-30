@@ -42,7 +42,10 @@ def dh2A(dh: list[float], jt: str) -> Callable[[float], NDArray]:
             # Do this in terms of the variables "dh" and "q" (so that one of the entries in your dh list or array
             # will need to be added to q).
 
-            T =
+            T = np.array([[np.cos(dh[3]), -np.sin(dh[3])*np.cos(dh[0]+q), np.sin(dh[3])*np.sin(dh[0]+q), dh[2]*np.cos(dh[0]+q)],
+                           [np.sin(dh[3]), np.cos(dh[3])*np.cos(dh[0]+q), -np.cos(dh[3])*np.sin(dh[0]+q), dh[2]*np.sin(dh[0]+q)],
+                           [0, np.sin(dh[0]+q), np.cos(dh[0]+q), dh[1]],
+                           [0, 0, 0, 1]])
 
             return T
 
@@ -54,7 +57,10 @@ def dh2A(dh: list[float], jt: str) -> Callable[[float], NDArray]:
             # Do this in terms of the variables "dh" and "q" (so that one of the entries in your dh list or array
             # will need to be added to q).
 
-            T =
+            T = np.array([[np.cos(dh[3]), -np.sin(dh[3])*np.cos(dh[0]), np.sin(dh[3])*np.sin(dh[0]), (dh[2]+q)*np.cos(dh[0])],
+                           [np.sin(dh[3]), np.cos(dh[3])*np.cos(dh[0]), -np.cos(dh[3])*np.sin(dh[0]), (dh[2]+q)*np.sin(dh[0])],
+                           [0, np.sin(dh[0]), np.cos(dh[0]), dh[1]],
+                           [0, 0, 0, 1]])
 
             return T
 
@@ -106,7 +112,7 @@ class SerialArm:
             # TODO use the function definition above (dh2A), and the dh parameters and
             # joint type to make a function and then append that function to the
             # "transforms" list (use the versions from self because they have error checks).
-            A =
+            A = dh2A(self.dh[i], self.jt[i])
             self.transforms.append(A)
 
         # assigning the base, and tip transforms that will be added to the default DH transformations.
@@ -195,6 +201,13 @@ class SerialArm:
         # organize the code any way you like.
 
         T = np.eye(4)
+
+        if base and start_frame == 0:
+            T = self.base @ T
+
+        for i in range(start_frame, end_frame):
+            T = T @ dh2A(self.dh[i], self.jt[i])(q[i])
+       
 
         return T
 

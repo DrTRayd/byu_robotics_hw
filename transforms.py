@@ -5,6 +5,7 @@ and eventually homogenous transforms.
 Empty outline derived from code written by John Morrell, former TA.
 """
 
+from matplotlib.pylab import norm
 import numpy as np
 from numpy import sin, cos, sqrt
 from numpy.typing import NDArray
@@ -187,12 +188,10 @@ def R2axis(R: NDArray) -> NDArray:
 
     # see equation (2.27) and (2.28) on pg. 54, using functions like "np.acos," "np.sin," etc.
     ang = np.arccos((np.trace(R) - 1) / 2)
-    axis_angle = np.array([
-        R[2, 1] - R[1, 2],
-        R[0, 2] - R[2, 0],
-        R[1, 0] - R[0, 1]
-    ]) / (2 * np.sin(ang)) if ang != 0 else np.zeros(3)
-   
+    axis_angle = np.array([ang,
+        (R[2, 1] - R[1, 2])/(2*np.sin(ang)),
+        (R[0, 2] - R[2, 0])/(2*np.sin(ang)),
+        (R[1, 0] - R[0, 1])/(2*np.sin(ang))])
 
     return axis_angle
 
@@ -234,7 +233,7 @@ def R2quat(R: NDArray) -> NDArray:
         the format [nu, ex, ey, ez]
     """
     # TODO, see equation (2.34) and (2.35) on pg. 55, using functions like "sp.sqrt," and "sp.sign"
-    nu = 0.5 * sp.sqrt(np.trace(R) + 1)
+    nu = 0.5 * sp.sqrt(np.abs(np.trace(R) + 1))
     ex = (sp.sign(R[2, 1] - R[1, 2]) * sp.sqrt(R[0, 0] - R[1, 1] - R[2, 2] + 1)) / 2
     ey = (sp.sign(R[0, 2] - R[2, 0]) * sp.sqrt(R[1, 1] - R[2, 2] - R[0, 0] + 1)) / 2
     ez = (sp.sign(R[1, 0] - R[0, 1]) * sp.sqrt(R[2, 2] - R[0, 0] - R[1, 1] + 1)) / 2
@@ -314,3 +313,38 @@ def euler2R(th1: float, th2: float, th3: float, order: str='xyz') -> NDArray:
         raise ValueError("Invalid Order!")
 
     return clean_rotation_matrix(R)
+
+def R2euler(R, order='xyz'):
+
+    D = dict(x=(rotx, 0), y=(roty, 1), z=(rotz, 2))
+
+    rotA, axis1 = D[order[0]]
+    rotB, axis2 = D[order[1]]
+    rotC, axis3 = D[order[2]]
+
+    if axis1 >= axis3:
+        s = -1
+    else:
+        s = 1
+
+    Ri = np.eye(3)
+    Rf = R
+
+    v = np.cross(Rf[:, axis3], (s * Ri[:, axis1]))
+    if np.isclose(norm(v), 0):  # This indicates a rotation about the A axis ONLY.
+        th1 = np.arccos(Ri[:, axis2] @ (Rf[:, axis2]))
+        th2 = 0
+        th3 = 0
+        Ri = Ri @ rotA(th1)
+    else:
+        v = v / norm(v)
+        th1 = np.arccos(min(max(Ri[:, axis2] @ v, 1), 0))
+        Ri = Ri @ rotA(th1)
+
+        th2 = np.arccos(min(max(Ri[:, axis3] @ Rf[:, axis3], 1), 0))
+        Ri = Ri @ rotB(th2)
+
+        th3 = np.arccos(min(max(Ri[:, axis2] @ Rf[:, axis2], 1), 0))
+        Ri = Ri @ rotC(th3)
+
+    return np.array([th1, th2, th3])

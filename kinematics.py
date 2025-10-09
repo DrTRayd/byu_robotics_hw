@@ -12,7 +12,7 @@ Marc Killpack, Sept 21, 2022 and Sept 21, 2023
 """
 
 
-from transforms_key_hw04 import *
+from transforms import *
 
 eye = np.eye(4)
 pi = np.pi
@@ -143,6 +143,9 @@ class SerialArm:
         self.tip = tip
         self.qlim = joint_limits
 
+        # Calculate the reach of the robot arm
+        self.reach = sum(dh[i][2] for i in range(self.n))  # Sum of the 'a' parameters
+
     def fk(self, q, index=None, base=False, tip=False):
         """
             T = arm.fk(q, index=None, base=False, tip=False)
@@ -235,6 +238,76 @@ class SerialArm:
         for i in range(self.n):
             dh_string += f"{self.dh[i][0]}\t|\t{self.dh[i][1]}\t|\t{self.dh[i][2]}\t|\t{self.dh[i][3]}\t|\t{self.jt[i]}\n"
         return "Serial Arm\n" + dh_string
+    
+
+
+
+    def jacob(self, q: list[float]|NDArray, index: int|None=None, base: bool=False,
+              tip: bool=False) -> NDArray:
+        """
+        J = arm.jacob(q)
+
+        Calculates the geometric jacobian for a specified frame of the arm in a given configuration
+
+        :param list[float] | NDArray q: joint positions
+        :param int | None index: joint frame at which to calculate the Jacobian
+        :param bool base: specify whether to include the base transform in the Jacobian calculation
+        :param bool tip: specify whether to include the tip transform in the Jacobian calculation
+        :return J: 6xN numpy array, geometric jacobian of the robot arm
+        """
+
+        if index is None:
+            index = self.n
+        assert 0 <= index <= self.n, 'Invalid index value!'
+
+        # TODO - start by declaring a zero matrix that is the correct size for the Jacobian
+        J = np.zeros((6, len(q)))
+
+        # TODO - find the current position of the point of interest (usually origin of frame "n")
+        # using your fk function this will likely require additional intermediate variables than
+        # what is shown here.
+        pe = self.fk(q, index=index, base=base, tip=tip)[:3, 3]
+
+
+        # TODO - calculate all the necessary values using your "fk" function, and fill every column
+        # of the jacobian using this "for" loop. Functions like "np.cross" may also be useful.
+        for i in range(index):
+            # check if joint is revolute
+            if self.jt[i] == 'r':
+                # find z axis of joint i
+                Ti = self.fk(q, index=[0, i], base=base, tip=False)
+                zi = Ti[:3, 2]
+
+                # find position of joint i
+                pi = Ti[:3, 3]
+
+                # calculate linear velocity component
+                Jv = np.cross(zi, (pe - pi))
+
+                # calculate angular velocity component
+                Jw = zi
+
+                # fill in the Jacobian matrix
+                J[:, i] = np.hstack((Jv, Jw))
+
+            # if not assume joint is prismatic
+            else:
+                # find z axis of joint i
+                Ti = self.fk(q, index=[0, i], base=base, tip=False)
+                zi = Ti[:3, 2]
+
+                # calculate linear velocity component
+                Jv = zi
+
+                # calculate angular velocity component
+                Jw = np.zeros(3)
+
+                # fill in the Jacobian matrix
+                J[:, i] = np.hstack((Jv, Jw))
+
+
+        return J
+
 
 
 

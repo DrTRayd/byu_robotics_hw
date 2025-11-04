@@ -45,40 +45,59 @@ import transforms as tf
 
 ## Problem 3
 
-# Define symoblic variables
-s_theta1, c_theta1, s_theta2, c_theta2 = sp.symbols('s_theta1 c_theta1 s_theta2 c_theta2')
-# Define original jacobian
+# # Define symoblic variables
+# s_theta1, c_theta1, s_theta2, c_theta2 = sp.symbols('s_theta1 c_theta1 s_theta2 c_theta2')
+# # Define original jacobian
 
-J = sp.Matrix([[-s_theta1*c_theta2 - s_theta1, -s_theta2*c_theta1],
-                [c_theta1*c_theta2 + c_theta1, -s_theta2*s_theta1],
-                [0, -s_theta1*s_theta1*c_theta2 - c_theta1*c_theta1*c_theta2], 
-                [0, -s_theta1],
-                [0, c_theta1],
-                [1, 0]])
+# J = sp.Matrix([[-s_theta1*c_theta2 - s_theta1, -s_theta2*c_theta1],
+#                 [c_theta1*c_theta2 + c_theta1, -s_theta2*s_theta1],
+#                 [0, -s_theta1*s_theta1*c_theta2 - c_theta1*c_theta1*c_theta2], 
+#                 [0, -s_theta1],
+#                 [0, c_theta1],
+#                 [1, 0]])
 
-#Compute rotation matric from end-effector to base frame 
+# #Compute rotation matric from end-effector to base frame 
 
-R_b_ee = tf.sp_rotx(sp.pi/2)
+# R_b_ee = tf.sp_rotx(sp.pi/2)
 
-print("Rotation Matrix from end-effector to base frame:\n", R_b_ee)
-R_b_ee = sp.Matrix([[1, 0, 0, 0, 0, 0], 
-                    [0, 0, -1, 0, 0, 0],
-                    [0, 1, 0, 0, 0, 0],
-                    [0, 0, 0, 1, 0, 0],
-                    [0, 0, 0, 0, 0, -1],
-                    [0, 0, 0, 0, 1, 0]])
+# print("Rotation Matrix from end-effector to base frame:\n", R_b_ee)
+# R_b_ee = sp.Matrix([[1, 0, 0, 0, 0, 0], 
+#                     [0, 0, -1, 0, 0, 0],
+#                     [0, 1, 0, 0, 0, 0],
+#                     [0, 0, 0, 1, 0, 0],
+#                     [0, 0, 0, 0, 0, -1],
+#                     [0, 0, 0, 0, 1, 0]])
 
 
 
-# Solve for transformed Jacobian
-Z = R_b_ee * sp.Matrix([[1, 0, 0, 0, 0, 0],
-                        [0, 1, 0, 0, 0, 2],
-                        [0, 0, 1, 0, 2, 0],
-                        [0, 0, 0, 1, 0, 0],
-                        [0, 0, 0, 0, 1, 0],
-                        [0, 0, 0, 0, 0, 1]])
+# # Solve for transformed Jacobian
+# Z = R_b_ee * sp.Matrix([[1, 0, 0, 0, 0, 0],
+#                         [0, 1, 0, 0, 0, 2],
+#                         [0, 0, 1, 0, 2, 0],
+#                         [0, 0, 0, 1, 0, 0],
+#                         [0, 0, 0, 0, 1, 0],
+#                         [0, 0, 0, 0, 0, 1]])
 
-sp.pprint(Z)
+# sp.pprint(Z)
 
-J_transformed = Z * J
-sp.pprint(J_transformed)
+# J_transformed = Z * J
+# sp.pprint(J_transformed)
+
+## Problem 4
+
+dh = np.array([[0, 0, 0, np.pi/2],
+               [0, 0, 0.4318, 0],
+                [0, 0.15, 0.02, -np.pi/2],
+                [0, 0.4318, 0, np.pi/2],
+                [0, 0, 0, -np.pi/2],
+                [0, 0.4, 0, 0]])
+
+jt_types = ['r', 'r', 'r', 'r', 'r', 'r']
+arm = SerialArm(dh, jt=jt_types)
+
+T_tool_6 = np.array([[0, 0, 1, 0], 
+                     [0, 1, 0, 0], 
+                     [-1, 0, 0, 0.2], 
+                     [0, 0, 0, 1]])
+
+#Find jacobian at the tool tip an in the tool frame using shifting law

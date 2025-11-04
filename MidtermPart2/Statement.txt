@@ -1,0 +1,4 @@
+According to the trials I ran on this method it seemed to work unless the obstacle was placed inside of a link at the arm's original orientation. 
+The general approach was to use potential fields to drive the arm towards the goal, the way I used that here is that the end effector is being 
+attracted towards the end goal, however there are repulsive forces that are applied to both joint 4 and the end effector when they get too close to the obstacle. 
+This does cause issues if the end goal is too close to the obstacle, as the two competing forces causes the arm to stall before it reaches the goal. 

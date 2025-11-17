@@ -77,6 +77,14 @@ class SerialArmDyn(SerialArm):
         if motor inertia is None, we don't consider it. Solve for now without motor inertia. The solution will provide code for motor inertia as well.
         """
 
+        # Normalize vector inputs to 1D arrays to avoid unexpected broadcasting
+        Wext = np.asarray(Wext).reshape(-1)
+        g = np.asarray(g).reshape(-1)
+        omega_base = np.asarray(omega_base).reshape(-1)
+        alpha_base = np.asarray(alpha_base).reshape(-1)
+        v_base = np.asarray(v_base).reshape(-1)
+        acc_base = np.asarray(acc_base).reshape(-1)
+
         omegas = []
         alphas = []
         v_ends = []
@@ -84,22 +92,116 @@ class SerialArmDyn(SerialArm):
         acc_ends = []
         acc_coms = []
 
+        ## Make space for n+1 elements (including base)
+        for i in range(self.n + 1):
+            if i == 0:
+                omegas.append(omega_base)
+                alphas.append(alpha_base)
+                v_ends.append(v_base)
+                v_coms.append(v_base)
+                acc_ends.append(acc_base)
+                acc_coms.append(acc_base)
+            else:
+                omegas.append(np.zeros(3))
+                alphas.append(np.zeros(3))
+                v_ends.append(np.zeros(3))
+                v_coms.append(np.zeros(3))
+                acc_ends.append(np.zeros(3))
+                acc_coms.append(np.zeros(3))
+
+        # Empty rotation matrix
+        R = [0]* (self.n + 1)
+        p = [0]* (self.n + 1)
+
         ## Solve for needed angular velocities, angular accelerations, and linear accelerations
         ## If helpful, you can define a function to call here so that you can debug the output more easily.
         for i in range(0, self.n):
-            pass
+            
+            # Get the dh parameters for joint i
+            a_i, alpha_i, d_i, theta_i = self.dh[i]
+
+            #Compute the actual theta and d based on joint type
+            if self.jt[i] == 'r':
+                theta = theta_i + q[i]
+                d = d_i
+            else:
+                theta = theta_i
+                d = d_i + q[i]
+
+            #Find rotation matrix from i-1 to i
+            cos_theta = np.cos(theta)
+            sin_theta = np.sin(theta)
+            cos_alpha = np.cos(alpha_i)
+            sin_alpha = np.sin(alpha_i)
+
+            R[i+1] = np.array([[cos_theta, -sin_theta * cos_alpha, sin_theta * sin_alpha],
+                            [sin_theta, cos_theta * cos_alpha, -cos_theta * sin_alpha],
+                            [0, sin_alpha, cos_alpha]])
+            
+            #Find position matrix from i-1 to i
+            p_i = np.array([a_i*cos_theta, a_i*sin_alpha, d])
+            # store position vector for use in backward pass
+            p[i+1] = p_i
+
+            #Find the z axis for joint i-1
+            z_i_1 = np.array([0,0,1])  # third column of rotation matrix
+
+            #Solve for angular velocity
+            omegas[i+1] = R[i+1].T @ omegas[i] + z_i_1 * qd[i]
+
+            #Angular acceleration
+            alphas[i+1] = R[i+1].T @ alphas[i] + np.cross(R[i+1].T @ omegas[i], z_i_1 * qd[i]) + z_i_1 * qdd[i]
+
+            #Linear velocity of origin of frame i
+            v_ends[i+1] = R[i+1].T @ (v_ends[i] + np.cross(omegas[i], p_i))
+
+            #Linear acceleration of origin of frame i
+            acc_ends[i+1] = R[i+1].T @ (acc_ends[i] + np.cross(alphas[i], p_i) + np.cross(omegas[i], np.cross(omegas[i], p_i)))
+
+            #Linear velocity of center of mass of link i
+            r_com_i = self.r_com[i]
+            v_coms[i] = v_ends[i+1] + np.cross(omegas[i+1], r_com_i)
+
+            #Linear acceleration of center of mass of link i
+            acc_coms[i] = acc_ends[i+1] + np.cross(alphas[i+1], r_com_i) + np.cross(omegas[i+1], np.cross(omegas[i+1], r_com_i))
 
         ## Now solve Kinetic equations by starting with forces at last link and going backwards
         ## If helpful, you can define a function to call here so that you can debug the output more easily.
-        Wrenches = [np.zeros((6,1))] * (self.n + 1)
+        # Use independent 6-element 1D arrays for wrenches (force then moment)
+        Wrenches = [np.zeros(6) for _ in range(self.n + 1)]
         tau = [0] * self.n
 
         for i in range(self.n - 1, -1, -1):  # Index from n-1 to 0
-            pass
+            I = self.link_inertia[i]
 
+            F_i = self.mass[i] * acc_coms[i]
+            N_i = I @ alphas[i+1] + np.cross(omegas[i+1], I @ omegas[i+1])
+
+            # Transform forces and moments from link i+1 to link i
+            R_next = R[i+1]
+            p_next = p[i+1]
+
+            #Transform wrench from frame i+1 to frame i
+            F_child = R_next @ Wrenches[i+1][0:3]
+            N_child = R_next @ Wrenches[i+1][3:6] + np.cross(p_next, F_child)
+            
+            # Total force and moment at joint i
+            F_total = F_i + F_child
+            N_total = N_i + N_child + np.cross(self.r_com[i], F_i) + np.cross(p_next, F_child)
+            Wrenches[i] = np.hstack((F_total, N_total))
+
+            # Project wrench onto joint axis to find torque/force
+            z_i = R[i+1][:, 2]  # joint axis in frame i
+            tau[i] = z_i @ N_total
+
+
+        print("Joint Torques/Forces:")
+        print(tau)
+        print("Wrenches:")
+        for i in range(len(Wrenches)):
+            print(f"Joint {i} Wrench: {Wrenches[i]}")
         return tau, Wrenches
-
-
+    
 
 if __name__ == '__main__':
 

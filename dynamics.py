@@ -85,6 +85,7 @@ class SerialArmDyn(SerialArm):
         v_base = np.asarray(v_base).reshape(-1)
         acc_base = np.asarray(acc_base).reshape(-1)
 
+
         omegas = []
         alphas = []
         v_ends = []
@@ -99,7 +100,7 @@ class SerialArmDyn(SerialArm):
                 alphas.append(alpha_base)
                 v_ends.append(v_base)
                 v_coms.append(v_base)
-                acc_ends.append(acc_base)
+                acc_ends.append(acc_base + g)  # add gravity to base acceleration
                 acc_coms.append(acc_base)
             else:
                 omegas.append(np.zeros(3))
@@ -139,7 +140,7 @@ class SerialArmDyn(SerialArm):
                             [0, sin_alpha, cos_alpha]])
             
             #Find position matrix from i-1 to i
-            p_i = np.array([a_i*cos_theta, a_i*sin_alpha, d])
+            p_i = np.array([a_i, 0, d])
             # store position vector for use in backward pass
             p[i+1] = p_i
 
@@ -175,7 +176,7 @@ class SerialArmDyn(SerialArm):
             I = self.link_inertia[i]
 
             F_i = self.mass[i] * acc_coms[i]
-            N_i = I @ alphas[i+1] + np.cross(omegas[i+1], I @ omegas[i+1])
+            tau_i = I @ alphas[i+1] + np.cross(omegas[i+1], I @ omegas[i+1])
 
             # Transform forces and moments from link i+1 to link i
             R_next = R[i+1]
@@ -183,23 +184,22 @@ class SerialArmDyn(SerialArm):
 
             #Transform wrench from frame i+1 to frame i
             F_child = R_next @ Wrenches[i+1][0:3]
-            N_child = R_next @ Wrenches[i+1][3:6] + np.cross(p_next, F_child)
-            
+            tau_child = R_next @ Wrenches[i+1][3:6] + np.cross(p_next, F_child)
+
             # Total force and moment at joint i
             F_total = F_i + F_child
-            N_total = N_i + N_child + np.cross(self.r_com[i], F_i) + np.cross(p_next, F_child)
-            Wrenches[i] = np.hstack((F_total, N_total))
+            tau_total = tau_i + tau_child + np.cross(self.r_com[i], F_i) + np.cross(p_next, F_child)
+            Wrenches[i] = np.hstack((F_total, tau_total))
 
             # Project wrench onto joint axis to find torque/force
             z_i = R[i+1][:, 2]  # joint axis in frame i
-            tau[i] = z_i @ N_total
+            tau[i] = z_i @ tau_total
 
-
-        print("Joint Torques/Forces:")
-        print(tau)
-        print("Wrenches:")
-        for i in range(len(Wrenches)):
-            print(f"Joint {i} Wrench: {Wrenches[i]}")
+        # print("Joint Torques/Forces:")
+        # print(tau)
+        # print("Wrenches:")
+        # for i in range(len(Wrenches)):
+        #     print(f"Joint {i} Wrench: {Wrenches[i]}")
         return tau, Wrenches
     
 
@@ -209,16 +209,16 @@ if __name__ == '__main__':
     ## an example of how to use the code.
 
     ## this just gives an example of how to define a robot, this is a planar 3R robot.
-    dh = [[0, 0, 1, 0],
-          [0, 0, 1, 0],
-          [0, 0, 1, 0]]
+    dh = [[0, 0, 0.4, 0],
+          [0, 0, 0.4, 0],
+          [0, 0, 0.4, 0]]
 
     joint_type = ['r', 'r', 'r']
 
     link_masses = [1, 1, 1]
 
     # defining three different centers of mass, one for each link
-    r_coms = [np.array([-0.5, 0, 0]), np.array([-0.5, 0, 0]), np.array([-0.5, 0, 0])]
+    r_coms = [np.array([-0.2, 0, 0]), np.array([-0.2, 0, 0]), np.array([-0.2, 0, 0])]
 
     link_inertias = []
     for i in range(len(joint_type)):
@@ -236,6 +236,27 @@ if __name__ == '__main__':
 
     # once implemented, you can call arm.RNE and it should work.
     q = [np.pi/4.0]*3
-    qd = [0.2]*3
-    qdd = [0.05]*3
+    qd = [np.pi/6, -np.pi/4, np.pi/3]
+    qdd = [-np.pi/6, np.pi/3, np.pi/6]
     arm.rne(q, qd, qdd)
+
+    #Solve for M(q)
+    M = np.zeros((len(q), len(q)))
+    for i in range(len(q)):
+        qdd_i = np.zeros(len(q))
+        qdd_i[i] = 1.0
+        M_i, _ = arm.rne(q, np.zeros(len(q)), qdd_i, Wext=np.zeros((6,1)), g=np.array([0,0,-9.81]))
+        M[:,i] = M_i
+
+    print("Mass Matrix M(q):")
+    print(M)
+
+    #Solve for C(q,qd)
+    C = np.zeros((len(q), len(q)))
+    for i in range(len(q)):
+        qdd_i = np.zeros(len(q))
+        M_qdd, _ = arm.rne(q, qd, qdd_i, Wext=np.zeros((6,1)), g=np.array([0,0,-9.81]))
+        C[:,i] = M_qdd - M[:,i]
+
+    print("Coriolis Matrix C(q,qd):")
+    print(C)

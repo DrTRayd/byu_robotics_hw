@@ -190,13 +190,13 @@ def animate_robot_paths(paths, interval=10, save_path=None, fade_color='lightgra
 
 if __name__ == "__main__":
     paths = signature_to_robot_paths(
-        "Final_Project/test_signature_2_white_background.png", #NOTE: The image must have a white background, with no colored border
+        "Final_Project/test_signature_1.png", #NOTE: The image must have a white background, with no colored border
         scale=0.01,
         offset=(0, 0, 0),
         z_down=0.0,
         z_up=0.5,
         # smoothing=0.005
-        smoothing = 0.005
+        smoothing = 0.1
     )
 
     for i, path in enumerate(paths):

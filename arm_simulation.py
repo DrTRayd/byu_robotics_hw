@@ -10,8 +10,8 @@ dh_params = [[0,    1.0,   0.0,   np.pi/2.0],
              [0,    0.0,   1.0,   0], 
              [0,    0.0,   1.0,   0]]
 
-tip = tr.se3(np.array([0, 0, 0]))
-arm = kin.SerialArm(dh_params, jt = ['r', 'r', 'r', 'r'], tip=tip)
+#tip = tr.se3(np.array([0, 0, 0]))
+arm = kin.SerialArm(dh_params, jt = ['r', 'r', 'r', 'r'])
 
 #List of desired end-effector positions and orientations
 R = np.eye(3)
@@ -20,7 +20,7 @@ R[:,2] = np.array([0,0,-1])
 R[:,1] = np.cross(R[:,2], R[:,0])  # ensures orthogonality
 print(R)
 desired_poses = [
-    (np.array([1.0, 1.0, 0]), R),
+    (np.array([1.5, 1.5, 0.5]), R),
     (np.array([1.5, 1.5, 0.0]), R),
     (np.array([2.0, 1.5, 0.0]), R)]
 
